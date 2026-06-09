@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChatSD — CEFET-MG</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ─── Tela de Auth ──────────────────────────────────────────────────────── -->
+<div id="auth-screen" class="screen auth-screen">
+  <div class="auth-card">
+    <h1>💬 ChatSD</h1>
+    <p class="subtitle">Sistemas Distribuídos — CEFET-MG 2026/1</p>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-login" onclick="showTab('login')">Entrar</button>
+      <button class="tab-btn" id="tab-register" onclick="showTab('register')">Criar conta</button>
+    </div>
+
+    <!-- Login -->
+    <div id="form-login">
+      <input type="email" id="login-email" placeholder="E-mail" autocomplete="email" />
+      <input type="password" id="login-password" placeholder="Senha" autocomplete="current-password" />
+      <button class="btn-primary" onclick="doLogin()">Entrar</button>
+    </div>
+
+    <!-- Registro -->
+    <div id="form-register" hidden>
+      <input type="text" id="reg-username" placeholder="Nome de usuário" />
+      <input type="email" id="reg-email" placeholder="E-mail" autocomplete="email" />
+      <input type="password" id="reg-password" placeholder="Senha (mín. 6 caracteres)" />
+      <button class="btn-primary" onclick="doRegister()">Criar conta</button>
+    </div>
+
+    <p id="auth-error" class="error-msg" hidden></p>
+  </div>
+</div>
+
+<!-- ─── Tela de Chat ──────────────────────────────────────────────────────── -->
+<div id="chat-screen" class="screen" hidden>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span id="sidebar-username" class="username-badge"></span>
+      <button class="btn-icon" title="Sair" onclick="doLogout()">⏻</button>
+    </div>
+
+    <div class="search-bar">
+      <input type="text" id="user-search" placeholder="Buscar usuário..." oninput="filterUsers()" />
+    </div>
+
+    <div class="sidebar-section-title">Conversas Privadas</div>
+    <ul id="user-list" class="conv-list"></ul>
+
+    <div class="sidebar-section-title">
+      Grupos
+      <button class="btn-icon" title="Novo grupo" onclick="openNewGroupModal()">＋</button>
+    </div>
+    <ul id="room-list" class="conv-list"></ul>
+  </aside>
+
+  <main class="chat-main">
+    <div id="chat-placeholder" class="chat-placeholder">
+      <span>Selecione uma conversa para começar</span>
+    </div>
+
+    <div id="chat-area" hidden>
+      <header class="chat-header">
+        <span id="chat-title"></span>
+        <span id="ws-status" class="ws-badge">●</span>
+      </header>
+
+      <div id="messages" class="messages-area"></div>
+
+      <footer class="chat-footer">
+        <textarea
+          id="msg-input"
+          placeholder="Digite uma mensagem… (Enter para enviar)"
+          rows="1"
+          onkeydown="handleMsgKey(event)"
+        ></textarea>
+        <button class="btn-send" onclick="sendMessage()">➤</button>
+      </footer>
+    </div>
+  </main>
+</div>
+
+<!-- ─── Modal Novo Grupo ──────────────────────────────────────────────────── -->
+<div id="modal-group" class="modal-backdrop" hidden>
+  <div class="modal-card">
+    <h3>Novo Grupo</h3>
+    <input type="text" id="group-name" placeholder="Nome do grupo" />
+    <div class="sidebar-section-title" style="margin-top:12px;">Selecionar membros</div>
+    <ul id="member-select-list" class="member-list"></ul>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeNewGroupModal()">Cancelar</button>
+      <button class="btn-primary" onclick="createGroup()">Criar</button>
+    </div>
+    <p id="group-error" class="error-msg" hidden></p>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
