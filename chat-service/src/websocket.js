@@ -1,6 +1,6 @@
 const { WebSocketServer } = require("ws");
-const { verifyToken } = require("../middleware/auth");
-const Message = require("../models/Message");
+const { verifyToken } = require("./middleware/auth");
+const Message = require("./models/Message");
 
 // Map: userId -> Set<WebSocket>  (um user pode ter múltiplas abas)
 const clients = new Map();
@@ -109,7 +109,7 @@ async function handleGroupMessage(ws, sender, msg) {
   }
 
   // Importação tardia para evitar circular dependency
-  const Room = require("../models/Room");
+  const Room = require("./models/Room");
   let room;
   try {
     room = await Room.findById(roomId).lean();

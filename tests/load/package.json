@@ -2,7 +2,6 @@
   "name": "load-test",
   "version": "1.0.0",
   "description": "Teste de carga — Chat Distribuído CEFET-MG",
-  "type": "module",
   "dependencies": {
     "node-fetch": "^3.3.2",
     "ws": "^8.17.1"

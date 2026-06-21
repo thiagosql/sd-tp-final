@@ -20,8 +20,8 @@ const mockUser = {
   password_hash: bcrypt.hashSync("senha123", 10),
 };
 
-jest.mock("../src/models", () => ({
-  getModels: () => ({
+jest.mock("../src/models", () => {
+  const mockModels = {
     User: {
       findOne: jest.fn(),
       findByPk: jest.fn(),
@@ -29,8 +29,9 @@ jest.mock("../src/models", () => ({
       create: jest.fn(),
     },
     sequelize: { authenticate: jest.fn(), sync: jest.fn() },
-  }),
-}));
+  };
+  return { getModels: () => mockModels };
+});
 
 const { getModels } = require("../src/models");
 const supertest = require("supertest");

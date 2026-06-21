@@ -1,0 +1,247 @@
+\documentclass[12pt,a4paper]{article}
+
+% ─── Pacotes ──────────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage[top=2cm,bottom=2cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{microtype}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black
+}
+
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    breaklines=true,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{orange}
+}
+
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+\titlespacing*{\subsection}{0pt}{6pt}{2pt}
+
+% ─── Documento ────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ─── Cabeçalho ────────────────────────────────────────────────────────────────
+\begin{center}
+    {\large\textbf{CEFET-MG --- Sistemas Distribuídos --- 2026/1}}\\[4pt]
+    {\LARGE\textbf{Sistema de Chat Distribuído}}\\[6pt]
+    {\large Thiago Leonardo Oliveira Bertolino \quad Pedro Henrique Ferreira Santos}\\[2pt]
+    {\small Professora: Michelle Hanne}\\[2pt]
+    {\small Código-fonte: \url{https://github.com/thiagosql/sd-tp-final}}
+\end{center}
+
+\vspace{4pt}
+\hrule
+\vspace{8pt}
+
+% ─── 1. Introdução ────────────────────────────────────────────────────────────
+\section{Introdução}
+
+Este relatório descreve o projeto e a implementação de uma plataforma de chat em tempo real com arquitetura de microsserviços. O sistema foi desenvolvido para atender os requisitos de alta disponibilidade, comunicação em tempo real de baixa latência e escalabilidade horizontal.
+
+% ─── 2. Arquitetura e Decisões de Projeto ─────────────────────────────────────
+\section{Arquitetura e Decisões de Projeto}
+
+\subsection{Visão Geral}
+
+A Figura~\ref{fig:arch} apresenta a arquitetura do sistema. O cliente acessa tudo através do Nginx, que atua como API Gateway e balanceador de carga. Atrás dele, dois microsserviços independentes são responsáveis por domínios distintos.
+
+\begin{figure}[H]
+    \centering
+    % Substitua pelo print da arquitetura ou pelo diagrama abaixo
+    \includegraphics[width=0.82\textwidth]{img/arquitetura.png}
+    \caption{Diagrama de arquitetura do sistema.}
+    \label{fig:arch}
+\end{figure}
+
+\subsection{Microsserviços}
+
+\textbf{Auth Service} (Node.js + Express + PostgreSQL): responsável por cadastro, autenticação e validação de tokens JWT. A escolha do PostgreSQL justifica-se pela natureza relacional dos dados de usuário e pela necessidade de garantias ACID.
+
+\textbf{Chat Service} (Node.js + Express + MongoDB + WebSocket): responsável pelas salas, histórico de mensagens e transmissão em tempo real. O MongoDB foi escolhido por sua flexibilidade de esquema e alto throughput de escrita/leitura, adequado para o volume dinâmico de mensagens.
+
+\subsection{Comunicação em Tempo Real}
+
+A comunicação de chat utiliza WebSockets (biblioteca \texttt{ws}). O token JWT é enviado como parâmetro de query na abertura da conexão (\texttt{/ws?token=<jwt>}), sendo validado antes do handshake. Após a conexão, o servidor mantém um \texttt{Map} de \texttt{userId} para o conjunto de sockets abertos, permitindo que um mesmo usuário receba mensagens em múltiplas abas simultaneamente.
+
+\subsection{Balanceamento de Carga e Escalabilidade}
+
+O Nginx é configurado com um bloco \texttt{upstream} apontando para \texttt{chat-service:3002}. Ao executar \texttt{docker compose up --scale chat-service=N}, o DNS interno do Docker resolve o hostname para todas as réplicas e o Nginx distribui as requisições em \textit{round-robin}. O Auth Service não precisa de múltiplas réplicas no cenário atual, pois o gargalo de concorrência é o chat.
+
+\subsection{Fluxo de Autenticação entre Serviços}
+
+Quando o Chat Service recebe uma requisição HTTP ou WebSocket, ele valida o JWT localmente (mesma chave secreta compartilhada via variável de ambiente). Isso evita uma chamada de rede ao Auth Service a cada mensagem, reduzindo a latência.
+
+% ─── 3. Implementação ─────────────────────────────────────────────────────────
+\section{Implementação}
+
+\subsection{Estrutura de Diretórios}
+
+\begin{lstlisting}
+sd-tp-final/
+├── auth-service/       # Microsservico de autenticacao (Express + PostgreSQL)
+├── chat-service/       # Microsservico de chat (Express + WebSocket + MongoDB)
+├── frontend/           # Interface HTML/CSS/JS puro (sem framework)
+├── nginx/              # Configuracao do API Gateway e balanceador
+├── tests/
+│   ├── unit/           # Testes unitarios (Jest + mocks)
+│   ├── integration/    # Testes de integracao (fluxo E2E)
+│   └── load/           # Teste de carga (usuarios simultaneos)
+└── docker-compose.yml  # Orquestracao completa
+\end{lstlisting}
+
+\subsection{Principais Rotas}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{Serviço} & \textbf{Rota} & \textbf{Descrição} \\
+\midrule
+Auth  & \texttt{POST /register}                    & Cadastro de usuário \\
+Auth  & \texttt{POST /login}                       & Autenticação, retorna JWT \\
+Auth  & \texttt{GET /validate}                     & Validação interna de token \\
+Auth  & \texttt{GET /users}                        & Lista usuários (autenticado) \\
+Chat  & \texttt{GET /messages/private/:id}         & Histórico 1:1 \\
+Chat  & \texttt{POST /rooms}                       & Cria sala de grupo \\
+Chat  & \texttt{GET /rooms}                        & Lista salas do usuário \\
+Chat  & \texttt{WS /ws?token=<jwt>}                & Conexão WebSocket em tempo real \\
+\bottomrule
+\end{tabularx}
+\caption{Principais endpoints dos microsserviços.}
+\end{table}
+
+\subsection{Front-end}
+
+A interface foi desenvolvida em HTML, CSS e JavaScript puro (sem frameworks). Ela apresenta uma barra lateral com lista de usuários e salas, e uma área central de mensagens com atualização em tempo real. O token JWT é armazenado em \texttt{localStorage} e a reconexão WebSocket é tratada automaticamente com atraso de 3 segundos.
+
+% ─── 4. Avaliação dos Estudos de Caso ─────────────────────────────────────────
+\section{Avaliação dos Estudos de Caso (Testes)}
+
+\subsection{Testes Unitários}
+
+Os testes unitários cobrem a lógica de negócio central do Auth Service de forma isolada, com mocks do banco de dados via Jest. Foram executados 18 casos de teste organizados em cinco grupos.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{Xcc}
+\toprule
+\textbf{Grupo} & \textbf{Casos} & \textbf{Resultado} \\
+\midrule
+Lógica de senha (bcrypt) & 3 & \textcolor{green!60!black}{3 passou} \\
+Geração e verificação de JWT & 4 & \textcolor{green!60!black}{4 passou} \\
+Validação de campos de registro & 4 & \textcolor{green!60!black}{4 passou} \\
+Rota HTTP \texttt{POST /register} & 3 & \textcolor{green!60!black}{3 passou} \\
+Rota HTTP \texttt{POST /login} & 4 & \textcolor{green!60!black}{4 passou} \\
+\midrule
+\textbf{Total} & \textbf{18} & \textbf{\textcolor{green!60!black}{18/18 (100\%)}} \\
+\bottomrule
+\end{tabularx}
+\caption{Resultado dos testes unitários.}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\textwidth]{img/unit-tests.png}
+    \caption{Saída do Jest com 18 testes unitários passando.}
+    \label{fig:unit}
+\end{figure}
+
+\subsection{Testes de Integração}
+
+Os testes de integração verificam o fluxo completo entre os componentes com a stack em execução via Docker Compose. Cobrem o caminho crítico: registro → autenticação → criação de sala → troca de mensagens.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{ID} & \textbf{Resultado} & \textbf{Descrição} \\
+\midrule
+TC-INT-01 & \textcolor{green!60!black}{PASSOU} & Registro do usuário A retorna 201 \\
+TC-INT-02 & \textcolor{green!60!black}{PASSOU} & Registro do usuário B retorna 201 \\
+TC-INT-03 & \textcolor{green!60!black}{PASSOU} & Login do usuário A gera JWT válido \\
+TC-INT-04 & \textcolor{green!60!black}{PASSOU} & Login do usuário B gera JWT válido \\
+TC-INT-05 & \textcolor{green!60!black}{PASSOU} & \texttt{/validate} aceita token válido (200) \\
+TC-INT-06 & \textcolor{green!60!black}{PASSOU} & \texttt{/validate} rejeita token inválido (401) \\
+TC-INT-07 & \textcolor{green!60!black}{PASSOU} & Listagem de usuários autenticada retorna array \\
+TC-INT-08 & \textcolor{green!60!black}{PASSOU} & Histórico de mensagens privadas retorna 200 \\
+TC-INT-09 & \textcolor{green!60!black}{PASSOU} & Criação de sala de grupo com membros corretos \\
+TC-INT-10 & \textcolor{green!60!black}{PASSOU} & Sala criada aparece na listagem do usuário A \\
+TC-INT-11 & \textcolor{green!60!black}{PASSOU} & Acesso sem token recebe 401 \\
+TC-INT-12 & \textcolor{green!60!black}{PASSOU} & Health check dos dois serviços retorna 200 \\
+\midrule
+\textbf{Total} & \textbf{\textcolor{green!60!black}{12/12 (100\%)}} & \\
+\bottomrule
+\end{tabularx}
+\caption{Resultado dos testes de integração.}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\textwidth]{img/integration-tests.png}
+    \caption{Saída dos testes de integração com 12/12 passando.}
+    \label{fig:integration}
+\end{figure}
+
+\subsection{Teste de Concorrência e Carga}
+
+O teste de carga simula 12 usuários simultâneos, cada um executando o fluxo completo: registro, login, abertura de conexão WebSocket e envio de 5 mensagens (60 mensagens no total). O objetivo é validar a escalabilidade horizontal e o balanceamento de carga.
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{0.75\textwidth}{Xr}
+\toprule
+\textbf{Métrica} & \textbf{Valor} \\
+\midrule
+Usuários simultâneos     & 12 \\
+Registros bem-sucedidos  & 12 / 12 \\
+Logins bem-sucedidos     & 12 / 12 \\
+Conexões WebSocket       & 12 / 12 \\
+Mensagens enviadas       & 60 \\
+Mensagens recebidas      & 60 \\
+Latência média           & 0{,}1 ms \\
+Latência máxima          & 1 ms \\
+Tempo total de execução  & 4{,}17 s \\
+\bottomrule
+\end{tabularx}
+\caption{Resultados do teste de carga com 12 usuários simultâneos.}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\textwidth]{img/load-test.png}
+    \caption{Saída do teste de carga com 12 usuários e 60 mensagens.}
+    \label{fig:load}
+\end{figure}
+
+Os resultados demonstram que o sistema processa todas as mensagens sem perdas e com latência inferior a 1~ms, confirmando a escalabilidade horizontal por meio do balanceamento de carga do Nginx.
+
+% ─── 5. Conclusão ─────────────────────────────────────────────────────────────
+\section{Conclusão}
+
+O sistema implementado atende a todos os requisitos mínimos do trabalho: dois microsserviços independentes com bancos de dados distintos, comunicação em tempo real via WebSockets, front-end responsivo, API Gateway com balanceamento de carga e orquestração via Docker Compose. A suíte de testes cobre a lógica de negócio (18 testes unitários), o fluxo entre serviços (12 testes de integração) e o comportamento sob carga concorrente (12 usuários simultâneos, 60 mensagens sem perda). O resultado confirma que a arquitetura distribuída escolhida garante alta disponibilidade, baixa latência e escalabilidade horizontal.
+
+\end{document}
